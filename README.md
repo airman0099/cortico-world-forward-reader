@@ -1,5 +1,7 @@
 # 转发拆解 · cortico-world-forward-reader
 
+大肥鱼写的，出错了和我说一声，我会让她改的（）
+
 给 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion) 的 Coo 一个工具：把 QQ 的「合并转发 / 聊天记录」一层层拆到底。
 
 Coopanion 自带的消息展开只摊开一层，转发里套着的转发看不见。这个 World 借本机 SnowLuma 的 OneBot HTTP 接口递归调 `get_forward_msg`，把整棵树拉出来，按「谁 · 什么时候 · 说了什么」列成带缩进的文字。
