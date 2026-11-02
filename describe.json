@@ -1,0 +1,55 @@
+{
+  "tools": [
+    {
+      "name": "qq_forward_read",
+      "tags": [
+        "read"
+      ],
+      "description": "拆开 QQ 的「合并转发 / 聊天记录」卡片，包括转发里套着的转发。\n什么时候用：收到 `qq.forward` 事件、或者 QQ 消息里写着「[合并转发]」但只摊开了一层、里面还有「又一层」时；想看清某段聊天记录到底是谁说了什么，也用它。\n怎么给编号：QQ 消息事件行首的 `#编号`（如 `#265277450`）就是 message_id，原样填进 ref；带不带 `#`、前后有空格都不要紧。\n它只读，只走本机的 SnowLuma OneBot HTTP 接口（默认 127.0.0.1:3000），不发消息、不改任何东西；接口没开或 token 不对会直接说清楚哪一步不对。输出过长会截断。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "description": "消息编号，即 QQ 消息事件行首的 #后面的数字，如 \"265277450\"。"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "description": "最多往下翻几层嵌套，不填用配置里的默认值（默认 8）。"
+          },
+          "maxChars": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 60000,
+            "description": "这次回执最多多少字，不填用配置里的默认值（默认 12000）。"
+          }
+        },
+        "required": [
+          "ref"
+        ]
+      },
+      "summary": {
+        "zh": "把一条 QQ「合并转发」一层层拆到底（嵌套在里面的转发也会展开），按人、按时间列成带缩进的树。",
+        "en": "Expand a QQ merged-forward message recursively — nested forwards included — into an indented transcript."
+      }
+    },
+    {
+      "name": "qq_forward_status",
+      "tags": [
+        "read"
+      ],
+      "description": "自检：读一遍配置，试着调一次 OneBot 的 get_status（或 get_login_info），把结果显示出来。\n拆不解开、报「连不上」或「没授权」时先用它确认是哪一环坏了，不要凭猜。",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "summary": {
+        "zh": "看一眼转发拆解能不能用：OneBot 接口通不通、token 读到没有、配置路径对不对。",
+        "en": "Check whether forward expansion can work right now: endpoint reachable, token found, config path valid."
+      }
+    }
+  ],
+  "events": []
+}

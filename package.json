@@ -1,0 +1,57 @@
+{
+  "name": "cortico-world-forward-reader",
+  "version": "0.1.0",
+  "description": "转发拆解 World：把 QQ 的「合并转发」一层层拆到底，嵌套在里面的转发也展开，输出带缩进的人话。只读，不发消息。",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "describe.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "cortico-world",
+    "cortico",
+    "coopanion",
+    "world",
+    "qq",
+    "forward",
+    "merge-forward"
+  ],
+  "license": "MIT",
+  "author": "airman0099",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/airman0099/cortico-world-forward-reader.git"
+  },
+  "homepage": "https://github.com/airman0099/cortico-world-forward-reader#readme",
+  "bugs": {
+    "url": "https://github.com/airman0099/cortico-world-forward-reader/issues"
+  },
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "displayName": "转发拆解",
+    "locales": {
+      "zh": {
+        "displayName": "转发拆解",
+        "description": "把 QQ 的「合并转发」一层层拆到底——嵌套在里面的转发也会展开，按人、按时间列成带缩进的文字。只读：借本机 SnowLuma 的 OneBot HTTP 接口取消息，不发消息、不改任何东西。"
+      },
+      "en": {
+        "displayName": "Forward Reader",
+        "description": "Expands QQ merged-forward messages recursively, including forwards nested inside forwards, into an indented transcript. Read-only: it queries the local SnowLuma OneBot HTTP API and never sends or changes anything."
+      }
+    },
+    "describe": "describe.json",
+    "tags": [
+      "qq",
+      "local"
+    ]
+  }
+}
