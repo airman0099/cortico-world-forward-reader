@@ -97,15 +97,23 @@ export async function callOneBot(cfg, action, params = {}) {
   return json.data ?? json;
 }
 
-/** 一条消息里的某个段 → 一行给人看的小字。 */
-export function segmentText(seg) {
+/**
+ * 一条消息里的某个段 → 一行给人看的小字。
+ * opts.links 为真时，图片后面补上地址（SnowLuma 一般给 url，取不到就退回 file），
+ * 这样带图的那条记录也能拿链接去看图，而不是只剩一个「[图片]」。
+ */
+export function segmentText(seg, opts = {}) {
   if (!seg || typeof seg !== 'object') return '';
   const d = seg.data || {};
   switch (seg.type) {
     case 'text':
       return d.text || '';
-    case 'image':
-      return `[图片${d.summary ? '：' + d.summary : ''}]`;
+    case 'image': {
+      const base = `[图片${d.summary ? '：' + d.summary : ''}]`;
+      if (!opts.links) return base;
+      const where = d.url || d.path || d.file || '';
+      return where ? `${base} ${where}` : base;
+    }
     case 'face':
       return `[表情${d.id ? ':' + d.id : ''}]`;
     case 'mface':

@@ -17,6 +17,20 @@ export const DEFAULTS = {
   maxChars: 12000,
   /** 单次请求超时（毫秒）。 */
   timeoutMs: 15000,
+
+  // ── 识图（可选，默认关）────────────────────────────────────────────
+  /** 拆到图片时，顺便让视觉端点说一句图里是什么。一百张图就一百次调用，默认关。 */
+  caption: false,
+  /** 一次拆解最多识几张图，多出来的只留链接。 */
+  captionMax: 6,
+  /** 每句描述最多多少字。 */
+  captionChars: 60,
+  /** 从哪儿读视觉端点（Coopanion 主配置里的 qqbot.vision）。 */
+  visionConfig: 'D:/Coopanion/data/home/companion/config.json',
+  /** 下面三项一般留空：留空就用 visionConfig 里配的值。 */
+  visionEndpoint: '',
+  visionModel: '',
+  visionKey: '',
 };
 
 export const CONFIG_GROUP = {
@@ -70,6 +84,50 @@ export const CONFIG_GROUP = {
         minimum: 1000,
         maximum: 120000,
         'x-hot': true,
+      },
+      'worlds.forward-reader.caption': {
+        type: 'boolean',
+        title: '拆到图片时顺手识图',
+        description:
+          '打开后，拆解里出现的图片会被下载、交给视觉端点，在图后补一句「这张图是什么」。' +
+          '一张图一次调用，会花一点钱，默认关；工具调用时也可以单独指定。',
+        'x-hot': true,
+      },
+      'worlds.forward-reader.captionMax': {
+        type: 'integer',
+        title: '一次最多识几张图',
+        description: '默认 6；多出来的图只留链接，不送去识图。',
+        minimum: 0,
+        maximum: 30,
+        'x-hot': true,
+      },
+      'worlds.forward-reader.captionChars': {
+        type: 'integer',
+        title: '每句描述字数',
+        description: '每张图的描述最多多少字，默认 60。',
+        minimum: 20,
+        maximum: 200,
+      },
+      'worlds.forward-reader.visionConfig': {
+        type: 'string',
+        title: '视觉端点配置路径',
+        description:
+          '从哪个配置文件读视觉端点（默认读 Coopanion 主配置里的 qqbot.vision：endpoint / model / apiKeySecret）。',
+      },
+      'worlds.forward-reader.visionEndpoint': {
+        type: 'string',
+        title: '视觉端点（可选）',
+        description: '留空就用上面配置文件里的值；填了就盖过它。',
+      },
+      'worlds.forward-reader.visionModel': {
+        type: 'string',
+        title: '视觉模型（可选）',
+        description: '留空就用配置文件里的值。',
+      },
+      'worlds.forward-reader.visionKey': {
+        type: 'string',
+        title: '视觉端点密钥（可选）',
+        description: '留空就用配置文件里的值；别把 key 写进仓库。',
       },
     },
   },

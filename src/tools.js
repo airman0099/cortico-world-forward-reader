@@ -18,7 +18,8 @@ export const TOOL_DECLS = [
       '怎么给编号：QQ 消息事件行首的 `#编号`（如 `#265277450`）就是 message_id，原样填进 ref；带不带 `#`、前后有空格都不要紧。' +
       '编号可能是负数（如 `#-1175570559`），负号是编号的一部分，要一起填，别去掉。\n' +
       '它只读，只走本机的 SnowLuma OneBot HTTP 接口（默认 127.0.0.1:3000），不发消息、不改任何东西；' +
-      '接口没开或 token 不对会直接说清楚哪一步不对。输出过长会截断。',
+      '接口没开或 token 不对会直接说清楚哪一步不对。输出过长会截断。\n' +
+      '图片：默认只给链接；传 `captions: true` 会顺便把图交给视觉端点，在结尾单列一节说每张图是什么（一张图一次调用，按需开）。',
     parameters: {
       type: 'object',
       properties: {
@@ -37,6 +38,10 @@ export const TOOL_DECLS = [
           minimum: 1000,
           maximum: 60000,
           description: '这次回执最多多少字，不填用配置里的默认值（默认 12000）。',
+        },
+        captions: {
+          type: 'boolean',
+          description: '顺便给图片配描述（默认按配置，通常关）。一张图一次视觉调用，会花一点钱；图多的时候只识前几张。',
         },
       },
       required: ['ref'],

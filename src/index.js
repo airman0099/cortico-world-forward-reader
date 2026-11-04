@@ -10,6 +10,7 @@
 import { CONFIG_GROUP, DEFAULTS, WORLD_ID } from './config.js';
 import { TOOL_DECLS } from './tools.js';
 import { callOneBot, describeSource, resolveEndpoint, resolveToken, segmentText } from './onebot.js';
+import { resolveVision, captionImage } from './vision.js';
 
 const LABEL = '转发拆解';
 const MAX_OUTPUT_CHARS = 12000;
@@ -57,20 +58,25 @@ function clockOf(time) {
   return `${year}${mo}-${dd} ${hh}:${mm}`;
 }
 
-/** 把一条消息的段合成一行，并挑出里面嵌套的转发段。 */
-function foldMessage(segments) {
+/** 把一条消息的段合成一行，并挑出里面嵌套的转发段（和图片，识图时要用）。 */
+function foldMessage(segments, opts = {}) {
   const parts = [];
   const nested = [];
+  const images = [];
   for (const seg of segments || []) {
     if (!seg) continue;
     if (seg.type === 'forward') {
       nested.push(seg);
       continue;
     }
-    const piece = segmentText(seg);
+    if (seg.type === 'image' && seg.data) {
+      const url = seg.data.url || seg.data.path || '';
+      if (url) images.push({ url, summary: seg.data.summary || '' });
+    }
+    const piece = segmentText(seg, opts);
     if (piece) parts.push(piece);
   }
-  return { text: parts.join('').trim(), nested };
+  return { text: parts.join('').trim(), nested, images };
 }
 
 export class ForwardReaderWorld {
@@ -155,11 +161,12 @@ export class ForwardReaderWorld {
     }
 
     const out = [];
-    const state = { items: 0, levels: 0, truncated: false };
+    const state = { items: 0, levels: 0, truncated: false, images: [] };
     const segments = data?.message || [];
-    const whole = foldMessage(segments);
+    const whole = foldMessage(segments, { links: true });
     const who = senderName(data?.sender);
     const when = clockOf(data?.time);
+    const wantCaption = Boolean(args.captions ?? cfg.caption);
 
     if (!whole.nested.length) {
       // 不是合并转发：直接把这条消息本身给人看。
@@ -168,6 +175,7 @@ export class ForwardReaderWorld {
       out.push(whole.text || '（没有文字内容）');
       out.push('');
       out.push('这条不是合并转发卡片，所以没有可拆的层。');
+      if (wantCaption) await this.addCaptions(out, whole.images.map((i) => ({ ...i, who, when })));
       return cap(out.join('\n'), limit);
     }
 
@@ -184,8 +192,28 @@ export class ForwardReaderWorld {
       await this.walk(seg.data?.id, 0, out, state, maxDepth);
     }
 
+    if (wantCaption) await this.addCaptions(out, state.images);
+
     out.unshift(`共 ${state.levels} 层 / ${state.items} 条${state.truncated ? '（已达条数上限，后面没再往下翻）' : ''}`);
     return cap(out.join('\n'), limit);
+  }
+
+  /** 把拆出来的图片送去识图，在结尾单列一节。失败也是一句话，不炸整份拆解。 */
+  async addCaptions(out, images) {
+    const list = (images || []).filter((i) => i && i.url);
+    if (!list.length) return;
+    const max = clampInt(this.cfg.captionMax, 6, 0, 30);
+    const chars = clampInt(this.cfg.captionChars, 60, 20, 200);
+    const picked = max > 0 ? list.slice(0, max) : [];
+    if (!picked.length) return;
+    const vision = await resolveVision(this.cfg);
+    out.push('');
+    out.push(`—— 图片 ${list.length} 张${list.length > picked.length ? `（只识前 ${picked.length} 张）` : ''} ——`);
+    for (const img of picked) {
+      const tag = `${img.who && img.who !== '?' ? img.who + ' ' : ''}${img.when || ''}`.trim();
+      const text = await captionImage(vision, img.url, { chars, timeoutMs: this.cfg.timeoutMs ?? 15000 });
+      out.push(`${tag ? '[' + tag + '] ' : ''}${text}`);
+    }
   }
 
   async walk(forwardId, depth, out, state, maxDepth) {
@@ -212,7 +240,8 @@ export class ForwardReaderWorld {
       }
       const who = senderName(item?.sender);
       const when = clockOf(item?.time);
-      const folded = foldMessage(item?.message);
+      const folded = foldMessage(item?.message, { links: true });
+      for (const img of folded.images) state.images.push({ ...img, who, when });
       const head = `${pad(depth)}[${who}${when ? ' ' + when : ''}]`;
       state.items += 1;
       out.push(`${head} ${folded.text || '（空）'}`);
