@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-forward-reader",
-  "version": "0.1.4",
+  "version": "0.1.11",
   "description": "转发拆解 World：把 QQ 的「合并转发」一层层拆到底，嵌套在里面的转发也展开，输出带缩进的人话。只读，不发消息。",
   "type": "module",
   "main": "./src/index.js",
@@ -41,11 +41,11 @@
     "locales": {
       "zh": {
         "displayName": "转发拆解",
-        "description": "把 QQ 的「合并转发」一层层拆到底——嵌套在里面的转发也会展开，按人、按时间列成带缩进的文字。只读：借本机 SnowLuma 的 OneBot HTTP 接口取消息，不发消息、不改任何东西。"
+        "description": "【需要先装 QQ群聊插件】把 QQ 的「合并转发」一层层拆到底——嵌套在里面的转发也会展开，按人、按时间列成带缩进的文字。只读：借 QQ群聊插件（qqbot）配好的本机 SnowLuma OneBot HTTP 接口取消息，不发消息、不改任何东西。拆到的图片默认作为附件一起交给模型（能看图就直接看到，看不见图只会读到一行文字说明）。"
       },
       "en": {
         "displayName": "Forward Reader",
-        "description": "Expands QQ merged-forward messages recursively, including forwards nested inside forwards, into an indented transcript. Read-only: it queries the local SnowLuma OneBot HTTP API and never sends or changes anything."
+        "description": "Requires the QQ chat (qqbot) plugin. Expands QQ merged-forward messages recursively, including forwards nested inside forwards, into an indented transcript. Read-only: it reuses the SnowLuma OneBot HTTP API that plugin already set up, and never sends or changes anything. Images are attached to the tool result by default, so a model that accepts images sees them; others just get a one-line text note."
       }
     },
     "describe": "describe.json",
