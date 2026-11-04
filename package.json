@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-forward-reader",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "转发拆解 World：把 QQ 的「合并转发」一层层拆到底，嵌套在里面的转发也展开，输出带缩进的人话。只读，不发消息。",
   "type": "module",
   "main": "./src/index.js",
