@@ -36,6 +36,33 @@ function pad(depth) {
   return '  '.repeat(depth);
 }
 
+const EXT_BY_MIME = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/bmp': 'bmp',
+  'image/avif': 'avif',
+};
+
+const MIME_BY_EXT = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  avif: 'image/avif',
+};
+
+/** 优先信 Content-Type，其次看链接后缀；都不是图就当 jpeg 试。 */
+function mimeOf(contentType, url) {
+  const ct = String(contentType || '').split(';')[0].trim().toLowerCase();
+  if (/^image\//.test(ct)) return ct;
+  const ext = (String(url || '').split('?')[0].match(/\.([a-z0-9]+)$/i) || [])[1];
+  return MIME_BY_EXT[String(ext || '').toLowerCase()] || 'image/jpeg';
+}
+
 function senderName(sender) {
   if (!sender) return '?';
   return sender.card || sender.nickname || (sender.user_id ? String(sender.user_id) : '?');
@@ -166,7 +193,8 @@ export class ForwardReaderWorld {
     const whole = foldMessage(segments, { links: true });
     const who = senderName(data?.sender);
     const when = clockOf(data?.time);
-    const wantCaption = Boolean(args.captions ?? cfg.caption);
+    // 识图只在调用时明确要求才跑：图已经当附件交给模型了，再自动识一遍是白花钱。
+    const wantCaption = args.captions === true;
 
     if (!whole.nested.length) {
       // 不是合并转发：直接把这条消息本身给人看。
@@ -176,7 +204,7 @@ export class ForwardReaderWorld {
       out.push('');
       out.push('这条不是合并转发卡片，所以没有可拆的层。');
       if (wantCaption) await this.addCaptions(out, whole.images.map((i) => ({ ...i, who, when })));
-      return cap(out.join('\n'), limit);
+      return this.finish(out, limit, whole.images.map((i) => ({ ...i, who, when })));
     }
 
     out.push(`# 转发拆解 · 消息 ${rawRef}${who !== '?' ? ` · ${who}` : ''}${when ? ` · ${when}` : ''}`);
@@ -195,18 +223,66 @@ export class ForwardReaderWorld {
     if (wantCaption) await this.addCaptions(out, state.images);
 
     out.unshift(`共 ${state.levels} 层 / ${state.items} 条${state.truncated ? '（已达条数上限，后面没再往下翻）' : ''}`);
-    return cap(out.join('\n'), limit);
+    return this.finish(out, limit, state.images);
+  }
+
+  /**
+   * 收尾：正文截断，再把图片当附件一起交出去。
+   * 能看图的模型直接看到图；看不见的模型只收到 fallbackText，不会报错。
+   */
+  async finish(out, limit, images) {
+    const blobs = await this.collectBlobs(images || []);
+    if (blobs.length) {
+      out.push('');
+      out.push(
+        `—— 有 ${blobs.length} 张图片已经作为附件一起给你了（看不见图的话，正文里的链接还在；想让它转述一句就传 captions: true）——`
+      );
+    }
+    const text = cap(out.join('\n'), limit);
+    return blobs.length ? { text, blobs } : text;
+  }
+
+  /** 把图片下载成附件；太大、下载失败、不是图的，直接跳过（正文里本来就有链接）。 */
+  async collectBlobs(images) {
+    if (!this.cfg.attachImages) return [];
+    const max = clampInt(this.cfg.attachMax, 6, 0, 30);
+    if (max <= 0) return [];
+    const maxBytes = clampInt(this.cfg.attachMaxMb, 8, 1, 32) * 1024 * 1024;
+    const timeoutMs = clampInt(this.cfg.timeoutMs, 15000, 1000, 120000);
+    const picked = images.filter((i) => i && i.url).slice(0, max);
+    const blobs = [];
+    for (let i = 0; i < picked.length; i += 1) {
+      const img = picked[i];
+      try {
+        const res = await fetch(img.url, { signal: AbortSignal.timeout(timeoutMs) });
+        if (!res.ok) continue;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (!bytes.length || bytes.length > maxBytes) continue;
+        const mime = mimeOf(res.headers.get('content-type'), img.url);
+        if (!/^image\//.test(mime)) continue;
+        const tag = `${img.who && img.who !== '?' ? img.who + ' ' : ''}${img.when || ''}`.trim();
+        blobs.push({
+          bytes,
+          mime,
+          name: `forward-${i + 1}.${EXT_BY_MIME[mime] || 'png'}`,
+          fallbackText: `${tag ? '[' + tag + '] ' : ''}图片 ${i + 1}：${img.url}`,
+        });
+      } catch {
+        // 拿不到就当没有这张：不炸整份拆解。
+      }
+    }
+    return blobs;
   }
 
   /** 把拆出来的图片送去识图，在结尾单列一节。失败也是一句话，不炸整份拆解。 */
   async addCaptions(out, images) {
     const list = (images || []).filter((i) => i && i.url);
     if (!list.length) return;
-    const max = clampInt(this.cfg.captionMax, 6, 0, 30);
+    const max = clampInt(this.cfg.attachMax, 6, 0, 30);
     const chars = clampInt(this.cfg.captionChars, 60, 20, 200);
     const picked = max > 0 ? list.slice(0, max) : [];
     if (!picked.length) return;
-    const vision = await resolveVision(this.cfg);
+    const vision = await resolveVision();
     out.push('');
     out.push(`—— 图片 ${list.length} 张${list.length > picked.length ? `（只识前 ${picked.length} 张）` : ''} ——`);
     for (const img of picked) {

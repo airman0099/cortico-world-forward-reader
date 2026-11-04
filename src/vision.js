@@ -1,7 +1,9 @@
 /**
- * 识图：拿 Coopanion 里已经配好的视觉端点（qqbot.vision）给一张图配一句描述。
+ * 识图：借本机已经配好的视觉端点，给一张图配一句描述。
  *
- * 为什么不直接抄一个模型名和 key：主人在设置里换端点/换模型时，这里跟着变，不用改代码。
+ * 端点从哪来：本机 Coopanion 的配置里找（一般是 QQ 那份 qqbot.vision），找到就用，
+ * 找不到就老实说没找到。配置页里不给格子填——留空的格子只会让人以为非得填。
+ * 写死不合适的盘符和模型名没有意义——换台机器就跑不通。
  * 端点按 OpenAI 兼容格式 POST /chat/completions，content 里混 text + image_url（data URL 也行）。
  *
  * 踩过的坑：
@@ -9,16 +11,32 @@
  *  2. 图片要先下载成 buffer 再转 base64，直接把外链丢过去有的端点拉不到（QQ 的图还带 rkey）。
  */
 import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 const MAX_BYTES = 6 * 1024 * 1024;
 
-/** 从 Coopanion 的配置文件里读 qqbot.vision；读不到就返回 null。 */
-async function readHostVision(configPath) {
-  if (!configPath) return null;
+/**
+ * 本机上可能放着 Coopanion 配置的地方，按顺序试。
+ * 不写死盘符：跑在 Coopanion 里时应用目录就是 execPath 的目录，外面手动跑也能从 cwd 猜。
+ */
+function configCandidates() {
+  const dirs = [dirname(process.execPath), join(dirname(process.execPath), '..'), process.cwd()];
+  const out = [];
+  if (process.env.COOPANION_CONFIG) out.push(process.env.COOPANION_CONFIG);
+  for (const dir of dirs) {
+    out.push(join(dir, 'data', 'home', 'companion', 'config.json'));
+    out.push(join(dir, 'home', 'companion', 'config.json'));
+    out.push(join(dir, 'config.json'));
+  }
+  return [...new Set(out)];
+}
+
+/** 从一份 Coopanion 配置里取视觉端点；没配就返回 null。 */
+async function readVisionFrom(configPath) {
   try {
     const raw = await readFile(configPath, 'utf8');
     const json = JSON.parse(raw);
-    const v = json?.worlds?.qqbot?.vision ?? json?.qqbot?.vision;
+    const v = json?.worlds?.qqbot?.vision ?? json?.qqbot?.vision ?? json?.vision;
     if (!v || !v.endpoint || !v.model) return null;
     return {
       endpoint: String(v.endpoint),
@@ -30,21 +48,19 @@ async function readHostVision(configPath) {
   }
 }
 
-/** 配置里的显式值优先，其次读宿主配置。 */
-export async function resolveVision(cfg) {
-  const own = {
-    endpoint: String(cfg.visionEndpoint || '').trim(),
-    model: String(cfg.visionModel || '').trim(),
-    key: String(cfg.visionKey || '').trim(),
-  };
-  if (own.endpoint && own.model) return own;
-  const host = await readHostVision(cfg.visionConfig);
-  if (!host) return null;
-  return {
-    endpoint: own.endpoint || host.endpoint,
-    model: own.model || host.model,
-    key: own.key || host.key,
-  };
+/** 配置里指定了路径就只读那一份，没指定就自己在本机找。 */
+async function readHostVision(configPath) {
+  if (configPath) return readVisionFrom(configPath);
+  for (const path of configCandidates()) {
+    const found = await readVisionFrom(path);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** 只认本机 Coopanion 配置里已经配好的视觉端点；找不到就返回 null。 */
+export async function resolveVision() {
+  return readHostVision(process.env.COOPANION_CONFIG || '');
 }
 
 function guessMime(buf) {
@@ -76,7 +92,7 @@ async function fetchImage(url, timeoutMs) {
 export async function captionImage(vision, url, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? 30000;
   const chars = opts.chars ?? 60;
-  if (!vision) return '（没找到能用的视觉端点）';
+  if (!vision) return '（没找到视觉端点：需要先在 QQ群聊插件里把视觉端点配好）';
   let buf;
   try {
     buf = await fetchImage(url, timeoutMs);
